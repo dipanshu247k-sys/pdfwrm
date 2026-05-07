@@ -14,3 +14,7 @@ After installation, use the following command to run:
 ```bash
 proot-distro login ubuntu -- /usr/bin/pdfwrm
 ```
+OR 
+```bash
+pdfwrm
+```
