@@ -102,9 +102,14 @@ fi
 
 # Step 4: Install Ubuntu via proot-distro
 require_cmd proot-distro
-log_info "Installing Ubuntu container"
-run_step "Ubuntu installation completed" proot-distro install ubuntu
+if [ -d "${PREFIX:-/data/data/com.termux/files/usr}/var/lib/proot-distro/installed-rootfs/ubuntu" ]; then
+    log_success "Ubuntu container already installed"
+else
+    log_info "Installing Ubuntu container"
+    run_step "Ubuntu installation completed" proot-distro install ubuntu
+fi
 echo "proot-distro login ubuntu -- /usr/bin/pdfwrm" > /data/data/com.termux/files/usr/bin/pdfwrm
+chmod +x /data/data/com.termux/files/usr/bin/pdfwrm
 
 # Step 5: Run commands inside the Ubuntu container
 run_step "Running Ubuntu setup commands" sh -c "cat <<'UBUNTU_CMDS' | proot-distro login ubuntu -- /bin/sh
