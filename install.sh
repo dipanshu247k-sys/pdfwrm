@@ -114,8 +114,8 @@ chmod +x /data/data/com.termux/files/usr/bin/pdfwrm
 # Step 5: Run commands inside the Ubuntu container
 run_step "Running Ubuntu setup commands" sh -c "cat <<'UBUNTU_CMDS' | proot-distro login ubuntu -- /bin/sh
 set -eu
-apt update && apt install -y wget
-wget \"https://github.com/dipanshu247k-sys/pdf-w-rm/releases/download/test/pdfwrm_1.0.0.deb\" \\
-apt install -y ./pdfwrm_1.0.0.deb
+apt-get update && apt-get install -y wget
+wget -q https://github.com/dipanshu247k-sys/pdf-w-rm/releases/download/test/pdfwrm_1.0.0.deb
+apt-get install -y ./pdfwrm_1.0.0.deb
 echo \"Successfully Installed the tool\"
 UBUNTU_CMDS"
