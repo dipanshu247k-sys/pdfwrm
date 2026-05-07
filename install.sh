@@ -102,7 +102,7 @@ fi
 
 # Step 4: Install Ubuntu via proot-distro
 require_cmd proot-distro
-if proot-distro login ubuntu -- true >/dev/null 2>&1; then
+if [ -d "$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu" ]; then
     log_success "Ubuntu container already installed"
 else
     log_info "Installing Ubuntu container"
