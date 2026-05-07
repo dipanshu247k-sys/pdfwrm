@@ -102,7 +102,7 @@ fi
 
 # Step 4: Install Ubuntu via proot-distro
 require_cmd proot-distro
-if proot-distro list | grep -q "Alias: ubuntu" && [ -d "${PREFIX:-/data/data/com.termux/files/usr}/var/lib/proot-distro/installed-rootfs/ubuntu" ]; then
+if proot-distro login ubuntu -- true >/dev/null 2>&1; then
     log_success "Ubuntu container already installed"
 else
     log_info "Installing Ubuntu container"
