@@ -119,11 +119,10 @@ apt-get update
 apt-get install -y wget
 
 # Download the specific package
-wget -q https://github.com/dipanshu247k-sys/pdf-w-rm/releases/download/test/pdfwrm_1.0.0.deb
+wget -q https://github.com/dipanshu247k-sys/pdfwrm/releases/download/test/pdfwrm_1.0.0.deb
 
 # Install the local .deb file and its dependencies
 apt-get install -y ./pdfwrm_1.0.0.deb
 
 echo \"Successfully Installed the tool\"
 UBUNTU_CMDS"
-

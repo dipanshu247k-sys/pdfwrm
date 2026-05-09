@@ -1,11 +1,11 @@
-# pdf-w-rm
+# pdfwrm (PDF WATERMARK REMOVER)
 A Termux Program to remove watermarks from PDFs
 
 ## Installation
 Run the following command to install:
 
 ```bash
-curl https://raw.githubusercontent.com/dipanshu247k-sys/pdf-w-rm/refs/heads/main/install.sh | bash
+curl https://raw.githubusercontent.com/dipanshu247k-sys/pdfwrm/refs/heads/main/install.sh | bash
 ```
 
 ## Usage
