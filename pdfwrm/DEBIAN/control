@@ -4,7 +4,7 @@ Section: utils
 Priority: optional
 Architecture: all
 Maintainer: Ivaan <dipanshu247k@gmail.com>
-Depends: bash, figlet, img2pdf, poppler-utils , gum
+Depends: bash, img2pdf, poppler-utils, fzf, python3 , python3-pymupdf
 Description: PDF watermark remover
  A PDF watermark remover, optimized for image-based PDFs (for example scanned PDF,  NCERT or other digital books).
  It provides a small CLI utility to help remove or reduce visible watermarks from pages.

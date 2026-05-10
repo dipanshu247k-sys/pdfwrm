@@ -12,131 +12,137 @@ print_info() {
     printf "%b\n" "${BLUE}$1${RESET}"
 }
 
-print_success() {
-    printf "%b\n" "${GREEN}$1${RESET}"
-}
-
-print_warn() {
-    printf "%b\n" "${YELLOW}$1${RESET}"
+print_error() {
+    printf "%b\n" "${RED}$1${RESET}" >&2
 }
 
 require_cmd() {
     if ! command -v "$1" >/dev/null 2>&1; then
-        printf "%b\n" "${RED}Missing required command: $1${RESET}" >&2
+        print_error "Missing required command: $1"
         exit 1
     fi
 }
 
-die() {
-    printf "%b\n" "${RED}$1${RESET}" >&2
-    exit 1
-}
+require_cmd fzf
 
-require_cmd gum
-require_cmd pdfimages
-require_cmd pdfinfo
-require_cmd img2pdf
-require_cmd md5sum
-require_cmd sort
-require_cmd find
-require_cmd mktemp
-require_cmd awk
+# Interactive file picker function
+choose_file() {
+    local current_dir=""
 
-if ! FILE=$(gum file /sdcard/); then
-    die "File selection canceled."
-fi
-
-if [ -z "$FILE" ]; then
-    die "No file selected."
-fi
-
-if [ ! -f "$FILE" ]; then
-    die "File not found: $FILE"
-fi
-
-case "$FILE" in
-    *.pdf|*.PDF) ;;
-    *) die "Selected file is not a PDF: $FILE" ;;
-esac
-
-get_page_count() {
-    pdfinfo "$1" | awk -F: '/^Pages/ {gsub(/^[ \t]+/, "", $2); print $2; exit}'
-}
-
-input_pages=$(get_page_count "$FILE")
-if [ -z "$input_pages" ]; then
-    die "Failed to read page count for: $FILE"
-fi
-
-base_name=$(basename "$FILE")
-print_info "Input: ${base_name}"
-print_info "Pages (input): ${input_pages}"
-
-TMP_DIR=$(mktemp -d -t pdfwrm-XXXXXX)
-cleanup() {
-    rm -rf "$TMP_DIR"
-}
-trap cleanup EXIT
-
-pdfimages -j "$FILE" "$TMP_DIR/w"
-
-mapfile -d '' -t images < <(find "$TMP_DIR" -type f -name 'w-*' -print0 | sort -z -V)
-if [ "${#images[@]}" -eq 0 ]; then
-    die "No images were extracted from: $FILE"
-fi
-
-total_images=${#images[@]}
-avg_per_page=$(awk -v imgs="$total_images" -v pages="$input_pages" 'BEGIN { if (pages > 0) printf "%.2f", imgs/pages; else print "0.00" }')
-print_info "Extracted images: ${total_images} (avg ${avg_per_page} per page)"
-
-declare -A hash_counts
-declare -A hash_files
-
-for img in "${images[@]}"; do
-    hash=$(md5sum -- "$img" | awk '{print $1}')
-    hash_counts["$hash"]=$(( ${hash_counts["$hash"]:-0} + 1 ))
-    if [ -n "${hash_files["$hash"]+x}" ]; then
-        hash_files["$hash"]+=$'\n'"$img"
+    if [ -d "/sdcard" ]; then
+        current_dir="/sdcard"
+    elif [ -d "/storage/emulated/0" ]; then
+        current_dir="/storage/emulated/0"
     else
-        hash_files["$hash"]="$img"
+        current_dir="$PWD"
     fi
-done
+    
+    while true; do
+        local items=()
+        local dir_entries=()
+        local pdf_entries=()
+        
+        # Add parent directory option if not at root
+        if [ "$current_dir" != "/" ]; then
+            items+=(".. (parent directory)")
+        fi
+        
+        if [ ! -d "$current_dir" ] || [ ! -r "$current_dir" ]; then
+            print_error "Cannot read directory: $current_dir"
+            exit 1
+        fi
 
-for hash in "${!hash_counts[@]}"; do
-    if [ "${hash_counts[$hash]}" -gt 1 ]; then
-        while IFS= read -r dup; do
-            rm -f -- "$dup"
-        done <<< "${hash_files[$hash]}"
-    fi
-done
+        # Collect subdirectories.
+        shopt -s nullglob
+        for entry in "$current_dir"/*; do
+            if [ -d "$entry" ]; then
+                dir_entries+=("$entry")
+            fi
+        done
 
-mapfile -d '' -t images < <(find "$TMP_DIR" -type f -name 'w-*' -print0 | sort -z -V)
-if [ "${#images[@]}" -eq 0 ]; then
-    die "All extracted images were duplicates; no output PDF created."
+        # Collect PDF files.
+        for entry in "$current_dir"/*.pdf "$current_dir"/*.PDF; do
+            if [ -f "$entry" ]; then
+                pdf_entries+=("$entry")
+            fi
+        done
+        shopt -u nullglob
+
+        for entry in "${dir_entries[@]}"; do
+            items+=("📁 $(basename "$entry")/")
+        done
+        for entry in "${pdf_entries[@]}"; do
+            items+=("📄 $(basename "$entry")")
+        done
+
+        if [ "$current_dir" = "/" ] && [ "${#items[@]}" -gt 0 ] && [ "${items[0]}" = ".. (parent directory)" ]; then
+            items=("${items[@]:1}")
+        fi
+        
+        if [ ${#items[@]} -eq 0 ]; then
+            print_error "No folders or PDF files in $current_dir"
+            exit 1
+        fi
+        
+        # Use fzf to select
+        local selected
+        selected=$(printf '%s\n' "${items[@]}" | fzf --preview 'file {}' --header "Current: $current_dir") || {
+            print_error "File selection canceled."
+            exit 1
+        }
+        
+        if [ -z "$selected" ]; then
+            print_error "No file selected."
+            exit 1
+        fi
+        
+        # Handle parent directory navigation
+        if [ "$selected" = ".. (parent directory)" ]; then
+            current_dir=$(dirname "$current_dir")
+            continue
+        fi
+        
+        # Remove emoji prefix
+        local selected_name="${selected#📁 }"
+        selected_name="${selected_name#📄 }"
+        selected_name="${selected_name%/}"
+        
+        local selected_path="$current_dir/$selected_name"
+        
+        # If directory, navigate into it
+        if [[ "$selected" == 📁* ]]; then
+            current_dir="$selected_path"
+            continue
+        fi
+        
+        # If PDF file, return it
+        if [[ "$selected" == 📄* ]]; then
+            echo "$selected_path"
+            return 0
+        fi
+    done
+}
+
+# Choose tool first
+CHOICE=$(printf "ncertwrm\nimagebased" | fzf --height 10 --border --header "Choose tool to run:" --preview "echo 'Processing PDF files'")
+
+if [ -z "$CHOICE" ]; then
+    print_error "No option selected."
+    exit 1
 fi
 
-unique_images=${#images[@]}
-if [ "$unique_images" -lt "$total_images" ]; then
-    removed=$((total_images - unique_images))
-    print_warn "Removed duplicate images: ${removed}"
-fi
+# Get file path
+PDF_FILE=$(choose_file)
 
-out_dir=$(dirname "$FILE")
-base_name=$(basename "$FILE")
-stem="${base_name%.*}"
-output_pdf="${out_dir}/${stem}_pdfwrm.pdf"
-
-if [ -e "$output_pdf" ]; then
-    die "Output already exists: $output_pdf"
-fi
-
-img2pdf "${images[@]}" -o "$output_pdf"
-
-output_pages=$(get_page_count "$output_pdf")
-if [ -z "$output_pages" ]; then
-    die "Failed to read page count for output: $output_pdf"
-fi
-
-print_success "Output: $(basename "$output_pdf")"
-print_success "Pages (output): ${output_pages}"
-print_success "Created: $(basename "$output_pdf")"
+case "$CHOICE" in
+    ncertwrm)
+        exec ncertwrm "$PDF_FILE"
+        ;;
+    imagebased)
+        exec imagebased "$PDF_FILE"
+        ;;
+    *)
+        print_error "Unknown option: $CHOICE"
+        exit 1
+        ;;
+esac

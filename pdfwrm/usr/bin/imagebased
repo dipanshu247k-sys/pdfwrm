@@ -1,0 +1,141 @@
+#!/bin/bash
+
+set -euo pipefail
+
+BLUE="\033[34m"
+GREEN="\033[32m"
+YELLOW="\033[33m"
+RED="\033[31m"
+RESET="\033[0m"
+
+print_info() {
+    printf "%b\n" "${BLUE}$1${RESET}"
+}
+
+print_success() {
+    printf "%b\n" "${GREEN}$1${RESET}"
+}
+
+print_warn() {
+    printf "%b\n" "${YELLOW}$1${RESET}"
+}
+
+require_cmd() {
+    if ! command -v "$1" >/dev/null 2>&1; then
+        printf "%b\n" "${RED}Missing required command: $1${RESET}" >&2
+        exit 1
+    fi
+}
+
+die() {
+    printf "%b\n" "${RED}$1${RESET}" >&2
+    exit 1
+}
+
+require_cmd fzf
+require_cmd pdfimages
+require_cmd pdfinfo
+require_cmd img2pdf
+require_cmd md5sum
+require_cmd sort
+require_cmd find
+require_cmd mktemp
+require_cmd awk
+
+# Accept file path from argument or exit if not provided
+if [ $# -eq 0 ]; then
+    die "Error: PDF file path required as argument"
+fi
+
+FILE="$1"
+
+if [ ! -f "$FILE" ]; then
+    die "File not found: $FILE"
+fi
+
+case "$FILE" in
+    *.pdf|*.PDF) ;;
+    *) die "Selected file is not a PDF: $FILE" ;;
+esac
+
+get_page_count() {
+    pdfinfo "$1" | awk -F: '/^Pages/ {gsub(/^[ \t]+/, "", $2); print $2; exit}'
+}
+
+input_pages=$(get_page_count "$FILE")
+if [ -z "$input_pages" ]; then
+    die "Failed to read page count for: $FILE"
+fi
+
+base_name=$(basename "$FILE")
+print_info "Input: ${base_name}"
+print_info "Pages (input): ${input_pages}"
+
+TMP_DIR=$(mktemp -d -t pdfwrm-XXXXXX)
+cleanup() {
+    rm -rf "$TMP_DIR"
+}
+trap cleanup EXIT
+
+pdfimages -j "$FILE" "$TMP_DIR/w"
+
+mapfile -d '' -t images < <(find "$TMP_DIR" -type f -name 'w-*' -print0 | sort -z -V)
+if [ "${#images[@]}" -eq 0 ]; then
+    die "No images were extracted from: $FILE"
+fi
+
+total_images=${#images[@]}
+avg_per_page=$(awk -v imgs="$total_images" -v pages="$input_pages" 'BEGIN { if (pages > 0) printf "%.2f", imgs/pages; else print "0.00" }')
+print_info "Extracted images: ${total_images} (avg ${avg_per_page} per page)"
+
+declare -A hash_counts
+declare -A hash_files
+
+for img in "${images[@]}"; do
+    hash=$(md5sum -- "$img" | awk '{print $1}')
+    hash_counts["$hash"]=$(( ${hash_counts["$hash"]:-0} + 1 ))
+    if [ -n "${hash_files["$hash"]+x}" ]; then
+        hash_files["$hash"]+=$'\n'"$img"
+    else
+        hash_files["$hash"]="$img"
+    fi
+done
+
+for hash in "${!hash_counts[@]}"; do
+    if [ "${hash_counts[$hash]}" -gt 1 ]; then
+        while IFS= read -r dup; do
+            rm -f -- "$dup"
+        done <<< "${hash_files[$hash]}"
+    fi
+done
+
+mapfile -d '' -t images < <(find "$TMP_DIR" -type f -name 'w-*' -print0 | sort -z -V)
+if [ "${#images[@]}" -eq 0 ]; then
+    die "All extracted images were duplicates; no output PDF created."
+fi
+
+unique_images=${#images[@]}
+if [ "$unique_images" -lt "$total_images" ]; then
+    removed=$((total_images - unique_images))
+    print_warn "Removed duplicate images: ${removed}"
+fi
+
+out_dir=$(dirname "$FILE")
+base_name=$(basename "$FILE")
+stem="${base_name%.*}"
+output_pdf="${out_dir}/${stem}_pdfwrm.pdf"
+
+if [ -e "$output_pdf" ]; then
+    die "Output already exists: $output_pdf"
+fi
+
+img2pdf "${images[@]}" -o "$output_pdf"
+
+output_pages=$(get_page_count "$output_pdf")
+if [ -z "$output_pages" ]; then
+    die "Failed to read page count for output: $output_pdf"
+fi
+
+print_success "Output: $(basename "$output_pdf")"
+print_success "Pages (output): ${output_pages}"
+print_success "Created: $(basename "$output_pdf")"
