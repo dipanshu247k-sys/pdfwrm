@@ -5,7 +5,7 @@ A Termux Program to remove watermarks from PDFs
 Run the following command to install:
 
 ```bash
-curl https://raw.githubusercontent.com/dipanshu247k-sys/pdfwrm/refs/heads/main/install.sh | bash
+curl https://raw.githubusercontent.com/dipanshu247k-sys/pdfwrm/refs/heads/main/termux-install.sh | bash
 ```
 
 ## Usage
