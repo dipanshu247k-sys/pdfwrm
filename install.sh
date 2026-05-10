@@ -119,7 +119,7 @@ apt-get update
 apt-get install -y wget
 
 # Download the specific package
-wget -q https://github.com/dipanshu247k-sys/pdfwrm/releases/download/stable/pdfwrm_1.2.0.deb
+wget -q https://github.com/dipanshu247k-sys/pdfwrm/releases/download/fix/pdfwrm_1.3.0.deb
 
 # Install the local .deb file and its dependencies
 apt-get install -y ./pdfwrm*.deb
