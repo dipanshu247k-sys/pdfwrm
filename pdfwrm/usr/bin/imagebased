@@ -129,7 +129,7 @@ if [ -e "$output_pdf" ]; then
     die "Output already exists: $output_pdf"
 fi
 
-img2pdf "${images[@]}" -o "$output_pdf"
+img2pdf --rotation=none "${images[@]}" -o "$output_pdf"
 
 output_pages=$(get_page_count "$output_pdf")
 if [ -z "$output_pages" ]; then
