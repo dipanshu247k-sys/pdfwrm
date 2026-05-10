@@ -36,17 +36,17 @@ choose_file() {
     else
         current_dir="$PWD"
     fi
-    
+
     while true; do
         local items=()
         local dir_entries=()
         local pdf_entries=()
-        
+
         # Add parent directory option if not at root
         if [ "$current_dir" != "/" ]; then
             items+=(".. (parent directory)")
         fi
-        
+
         if [ ! -d "$current_dir" ] || [ ! -r "$current_dir" ]; then
             print_error "Cannot read directory: $current_dir"
             exit 1
@@ -78,43 +78,43 @@ choose_file() {
         if [ "$current_dir" = "/" ] && [ "${#items[@]}" -gt 0 ] && [ "${items[0]}" = ".. (parent directory)" ]; then
             items=("${items[@]:1}")
         fi
-        
+
         if [ ${#items[@]} -eq 0 ]; then
             print_error "No folders or PDF files in $current_dir"
             exit 1
         fi
-        
+
         # Use fzf to select
         local selected
-        selected=$(printf '%s\n' "${items[@]}" | fzf --preview 'file {}' --header "Current: $current_dir") || {
+        selected=$(printf '%s\n' "${items[@]}" | fzf --header "Current: $current_dir") || {
             print_error "File selection canceled."
             exit 1
         }
-        
+
         if [ -z "$selected" ]; then
             print_error "No file selected."
             exit 1
         fi
-        
+
         # Handle parent directory navigation
         if [ "$selected" = ".. (parent directory)" ]; then
             current_dir=$(dirname "$current_dir")
             continue
         fi
-        
+
         # Remove emoji prefix
         local selected_name="${selected#📁 }"
         selected_name="${selected_name#📄 }"
         selected_name="${selected_name%/}"
-        
+
         local selected_path="$current_dir/$selected_name"
-        
+
         # If directory, navigate into it
         if [[ "$selected" == 📁* ]]; then
             current_dir="$selected_path"
             continue
         fi
-        
+
         # If PDF file, return it
         if [[ "$selected" == 📄* ]]; then
             echo "$selected_path"
